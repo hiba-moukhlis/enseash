@@ -1,11 +1,14 @@
-#include <unistd.h>  
+#include <unistd.h> 
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h> 
 #include <fcntl.h> 
 #include <sys/wait.h>
-
-#define MAX_INPUT_SIZE 256
+#include <time.h> 
+#include <stdbool.h>
+#include <sys/types.h>
+#define MAX_INPUT_SIZE 256 
+#define MAX_COMMAND_LENGTH 100
 
 // File Descriptors
 int terminal = STDOUT_FILENO; // Sending arguments to terminal
@@ -14,73 +17,157 @@ int status;
 // Input variable
 char input[MAX_INPUT_SIZE];
 int bytesRead;
-char waitingPrompt[] = "enseash % ";
 
-// Function to display the welcome message and prompt
+char waitingPrompt[MAX_INPUT_SIZE] = "";
+char exitSucesss[] = "\nEnd of ShellENSEA\nBye bye...\n";
+
+struct timespec starttime, endtime;
+
+//Time control
+int exit_signal_status;
+double time_elapsed;
 void shellDisplay(void) {
-    // Informational Messages
+    //Informational Messages
     char welcomeMessage[] = "Welcome to ShellENSEA! \nType 'exit' to quit\n";
-    // Displaying
-    write(terminal, welcomeMessage, strlen(welcomeMessage));
+    
+    //Displaying
+    write(terminal,welcomeMessage,strlen(welcomeMessage));
+
 }
-// Function to execute the command entered by the user
-void command(char input[]) {
-    pid_t pid = fork();
+
+void command(char input[], int bytesRead){
+    if(strcmp(input,"exit") == 0 || bytesRead == 0){   //Enter in if exit or ctrl+d
+        write(terminal,exitSucesss,sizeof(exitSucesss));
+        exit(EXIT_SUCCESS);
+
+    }
+ pid_t pid = fork();
+       
 
     if (pid <= -1) {
         close(fd_input);
         close(terminal);
         exit(EXIT_FAILURE);
+
     } else if (pid == 0) { // Child code
-        execlp(input, input, NULL);
-        close(fd_input);
-        close(terminal);   
-        exit(EXIT_SUCCESS);
-    } else { // Parent code
-        wait(&status);
-        // Check if the command exited normally or by signal
-        if (WIFEXITED(status)) {
-            int exitCode = WEXITSTATUS(status);
-            char exitMessage[50];
-            snprintf(exitMessage, sizeof(exitMessage), "[exit:%d] ", exitCode);
-            write(terminal, exitMessage, strlen(exitMessage));
-        } else if (WIFSIGNALED(status)) {
-             int signalCode = WTERMSIG(status);
-            char signalMessage[50];
-            snprintf(signalMessage, sizeof(signalMessage), "[sign:%d] ", signalCode);
-            write(terminal, signalMessage, strlen(signalMessage));
+        char *token = strtok(input, " "); //Splitting the input according the " " separator
+        char *args[MAX_INPUT_SIZE];
+
+        int index = 0;
+        while (token != NULL){
+            args[index++] = token;
+            token = strtok(NULL, " "); //Moving to the next value
         }
+        args[index] = NULL;
+
+        execvp(args[0], args); //Execution of every arguments
+
+        close(fd_input);
+        close(terminal);
+        exit(EXIT_SUCCESS);
+
+    } else {
+        wait(&status);
+        
+
     }
-}int main(int argc, char **argv) {
-    shellDisplay();
+}
+void return_code(void){
+
+    int sprintfvalue;
+
+    //Time conversion takes into account seconds and nanoseconds
+    time_elapsed = (endtime.tv_sec-starttime.tv_sec)*1000+(endtime.tv_nsec-starttime.tv_nsec)/1e6;
     
+    //Return code for exit and signal
+    if (WIFEXITED(status)){
+         exit_signal_status = WEXITSTATUS(status);
+        sprintfvalue = sprintf(waitingPrompt, "enseash [exit:%d|%.0f ms] %% ",exit_signal_status,time_elapsed);
+    }
+    else if(WIFSIGNALED(status)){
+        exit_signal_status = WTERMSIG(status);
+        sprintfvalue = sprintf(waitingPrompt, "enseash [sign:%d|%.0f ms] %% ",exit_signal_status, time_elapsed);
+    }
+    
+}
+void redirections_func(char* command) {
+    char* input_file = NULL;
+    char* output_file = NULL;
+
+    char* token = strtok(command, " ");
+    int i = 0;
+    char* args[MAX_COMMAND_LENGTH];
+
+    while (token != NULL) {
+        if (strcmp(token, "<") == 0) {
+            token = strtok(NULL, " ");
+             input_file = token; // the next token will be considered as input file
+        } else if (strcmp(token, ">") == 0) {
+            token = strtok(NULL, " ");
+            output_file = token; // the next token will be considered as output file
+        } else {
+            args[i++] = token; // Collect the arguments + command
+        }
+        token = strtok(NULL, " ");
+    }
+    args[i] = NULL;
+      if (input_file != NULL) {
+        int in = open(input_file, O_RDONLY);
+        dup2(in, STDIN_FILENO);
+        close(in);
+    }
+    if (output_file != NULL) {
+        int out = open(output_file, O_WRONLY | O_CREAT | O_TRUNC, 0644);
+        dup2(out, STDOUT_FILENO);
+        close(out);
+    }
+    execvp(args[0], args);	// EXecute the first argument (command) + other args (Arguments)
+    exit(EXIT_FAILURE);
+}
+
+int main(int argc, char **argv) {
+    shellDisplay(); 
     while (1) {
-        write(terminal, waitingPrompt, sizeof(waitingPrompt)-1);
+        return_code(); 
+        write(terminal, waitingPrompt, sizeof(waitingPrompt) - 1); // Affiche le prompt
+
         
         bytesRead = read(fd_input, input, sizeof(input));
-        
-        // Si EOF (Ctrl+D) ou erreur de lecture, quitter le shell
-        if (bytesRead == 0) {
-            write(terminal, "Bye bye...\n", 11);
-            break;
-        }
-         // Removing the '\n' at the end
-        input[bytesRead-1] = '\0';
+        input[bytesRead - 1] = '\0'; 
+        clock_gettime(CLOCK_MONOTONIC, &starttime); 
 
-        // If the user enters "exit", we break the loop and end the program
-        if (strcmp(input, "exit") == 0) {
-            write(terminal, "Bye bye...\n", 11); // Optional: Goodbye message
-            break;
+        // Détection et gestion des redirections
+        if (strstr(input, "<") != NULL || strstr(input, ">") != NULL) {
+            pid_t pid = fork();
+            if (pid < 0) {
+                perror("Erreur de fork");
+                exit(EXIT_FAILURE);
+            } else if (pid == 0) {
+                redirections_func(input);
+                exit(EXIT_FAILURE); // Si execvp échoue
+            } else {
+                int status;
+                waitpid(pid, &status, 0); // Attente de la fin du processus enfant
+                return_code();
+            }
+        } else {            // Exécution normale des commandes
+            command(input, bytesRead);
         }
 
-        // Execute the command
-        command(input);
+        clock_gettime(CLOCK_MONOTONIC, &endtime); 
     }
 
-    close(terminal);
-    close(fd_input);
     return EXIT_SUCCESS;
 }
+
+
+
+
+
+
+
+
+
 
 
 
