@@ -1,0 +1,109 @@
+# ShellENSEA - Micro Shell Project
+
+## Description
+ShellENSEA is a micro shell designed to execute system commands and display information about their execution, such as return codes, signals, and execution time. This project was developed as part of the synthesis lab (Computer Science Major - 2nd year).
+
+---
+
+## Implemented Features
+### 1. Welcome Message
+- Displays a welcome message when launching the shell.
+- Example:
+  ```
+  $ ./enseash
+  Welcome to ShellENSEA! 
+  Type 'exit' to quit
+  enseash %
+  ```
+
+### 2. Simple Command Execution
+- Reads and executes simple commands without arguments in a REPL (Read-Eval-Print Loop).
+- Example:
+  ```
+  enseash % date
+  Sun Dec 13 13:19:40 CET 2020
+  enseash %
+  ```
+
+### 3. Exit Management
+- Supports the `exit` command and `<Ctrl>+D` combination to quit the shell.
+- Example:
+  ```
+  enseash % exit
+  End of ShellENSEA
+  Bye bye...
+  ```
+
+### 4. Return Code or Signal Display
+- Adds the return code or signal of the previous command to the prompt.
+- Example:
+  ```
+  enseash % ls
+  file1.txt  file2.txt
+  enseash [exit:0] % wrong_command
+  enseash [sign:127] %
+  ```
+
+### 5. Execution Time Measurement
+- Uses `clock_gettime` to measure and display the execution time of commands.
+- Example:
+  ```
+  enseash % sleep 1
+  enseash [exit:0|1000 ms] %
+  ```
+
+### 6. Complex Commands (with Arguments)
+- Supports commands with multiple arguments.
+- Example:
+  ```
+  enseash % echo Hello World
+  Hello World
+  enseash %
+  ```
+
+### 7. Redirection Management
+- Handles input and output redirection (`<` and `>`).
+- Example:
+  ```
+  enseash % ls > filelist.txt
+  enseash [exit:0|1 ms] % wc -l < filelist.txt
+  44
+  enseash [exit:0|4 ms] %
+  ```
+
+---
+
+## Compilation and Execution Instructions
+1. **Compilation:**
+   Use `gcc` to compile the code:
+   ```bash
+   gcc -o enseash enseash.c
+   ```
+
+2. **Execution:**
+   Run the shell:
+   ```bash
+   ./enseash
+   ```
+
+---
+
+## Code Structure
+- **`shellDisplay`**: Displays the welcome message.
+- **`command`**: Executes simple and complex system commands.
+- **`return_code`**: Manages return codes and signals.
+- **`redirections_func`**: Implements redirection handling (`<`, `>`).
+- **`main`**: REPL loop for user interactions.
+
+---
+
+## Features to Implement
+Next steps include:
+- Pipe management (`|`).
+- Background command execution (`&`).
+
+---
+
+## Authors
+- Name: [OUAHABI AL HASSANI and MOUKHLIS]
+- 2G1 TD1 TP1.
